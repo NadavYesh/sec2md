@@ -59,3 +59,6 @@ scripts/
 
 .claude
 
+src/test_tables.py
+src/classes_sec2md.svg
+src/packages_sec2md.svg
