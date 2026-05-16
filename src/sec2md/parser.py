@@ -294,7 +294,9 @@ class Parser:
                 return self._one_row_table_to_text(cells)
 
             self.includes_table = True
-            return TableParser(element).md().strip()
+            table_parser_obj = TableParser(element).md().strip()
+            logger.debug(f"Table processed with TableParser, md length: {len(table_parser_obj)}")
+            return table_parser_obj
 
         if element.name in {"ul", "ol"}:
             items = []

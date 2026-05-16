@@ -55,7 +55,7 @@ class TableParser:
         """
         if not isinstance(table_element, Tag) or table_element.name != 'table':
             raise ValueError("table_element must be a table tag")
-
+        logger.debug("Initializing TableParser for table element")
         self.table_element = table_element
 
         self.cells = self._extract_cells()
@@ -69,6 +69,7 @@ class TableParser:
                 text = td.get_text(separator=" ", strip=True).replace('\xa0', ' ')
                 if not text:
                     if td.find('img'):
+                        logger.debug("Found image in cell, replacing with bullet")
                         text = '●'  # or '•' depending on your BULLETS set
                 rowspan = self._safe_parse_int(td.get('rowspan'))
                 colspan = self._safe_parse_int(td.get('colspan'))
@@ -81,9 +82,9 @@ class TableParser:
     def _safe_parse_int(value: str, default: int = 1) -> int:
         """Safely parse an integer value, returning default if parsing fails"""
         try:
-            if not value or not isinstance(value, str):
+            if not value or not isinstance(value, str): # if value is not a string or empty
                 return default
-            cleaned = ''.join(c for c in value if c.isdigit())
+            cleaned = ''.join(c for c in value if c.isdigit()) # only keep digits
             return int(cleaned) if cleaned else default
         except (ValueError, TypeError):
             return default
@@ -120,7 +121,9 @@ class TableParser:
                 col += cell.colspan
 
         grid = self._clean_grid(grid)
+        logger.debug(f"Grid cleaned: {len(grid)} rows x {len(grid[0]) if grid else 0} cols")
         grid = self._merge_grid(grid)
+        logger.debug(f"Grid merged: {len(grid)} rows x {len(grid[0]) if grid else 0} cols")
 
         return grid
 
@@ -128,21 +131,30 @@ class TableParser:
         """Check if two cells should be merged based on the rules"""
         # Handle empty cells
         if not val1 or not val2:
+            logger.debug("Merging due to missing cell(s)")
             return True
 
         s1 = val1.text.strip()
         s2 = val2.text.strip()
 
-        if not s1 or not s2:
+        if not s1 or not s2: # at least one cell is empty
+            logger.debug(f"Merging due to empty cell: s1='{s1}', s2='{s2}'")
             return True
 
         if self.is_footnote(s2):
+            logger.debug(f"Merging due to footnote: {s2}")
             return True
 
         if s1 == '$':
+            logger.debug("Merging due to '$'")
             return True
 
         if s2 == '%':
+            logger.debug("Merging due to '%'")
+            return True
+
+        if s1 == '(' or s2 == ')':
+            logger.debug(f"Merging due to parenthesis: s1='{s1}', s2='{s2}'")
             return True
 
         return False
@@ -199,9 +211,10 @@ class TableParser:
                 continue
 
             cell_pairs = list(zip(current_col[1:], col[1:]))
-            should_merge = all(self._should_merge_cells(c1, c2) for c1, c2 in cell_pairs)
+            should_merge = all(self._should_merge_cells(c1, c2) for c1, c2 in cell_pairs) # if all are true
 
             if should_merge:
+                logger.debug(f"Merging column {col_idx} into current column")
                 merged = [current_col[0]]  # Keep header
                 for c1, c2 in cell_pairs:
                     if not c1:
@@ -244,6 +257,7 @@ class TableParser:
 
         nrows = len(matrix)
         ncols = len(matrix[0]) if matrix else 0
+        logger.debug(f"Processing headers for matrix: {nrows} rows x {ncols} cols")
 
         if nrows < 2:
             # Single row - treat as header with no data
@@ -256,6 +270,8 @@ class TableParser:
         # Check if we should fuse headers
         nonempty_row1 = sum(1 for v in row1 if v)
         many_blanks_in_row0 = sum(1 for v in row0 if v == "") >= max(2, ncols // 2)
+
+        logger.debug(f"Header fusion check: nonempty_row1={nonempty_row1}, many_blanks_in_row0={many_blanks_in_row0}, ncols={ncols}")
 
         if nonempty_row1 >= max(2, ncols // 2) and many_blanks_in_row0:
             # Fuse the two header rows
@@ -337,15 +353,20 @@ class TableParser:
         # Get the matrix
         matrix = self.to_matrix()
         if not matrix:
+            logger.debug("Table matrix is empty, skipping")
             return ""
 
         # Process headers
         headers, data = self._process_headers(matrix)
-
+        logger.debug(f"Headers identified: {headers}")
+        logger.debug(f"Data rows remaining: {len(data)}")
+        
         # Clean empty rows/columns
         headers, data = self._clean_empty_rows_and_cols(headers, data)
+        logger.debug(f"After cleaning: {len(headers)} cols, {len(data)} rows")
 
         if not headers and not data:
+            logger.debug("Table is empty after cleaning, skipping")
             return ""
 
         # Build markdown table
