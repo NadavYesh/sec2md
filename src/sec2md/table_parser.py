@@ -191,7 +191,7 @@ class TableParser:
         rows_to_keep = [
             i for i, row in enumerate(grid)
             # keep a row if cell is not empty
-            # if any( 
+            if any( 
                 cell is not None and cell.text.strip()
                 for cell in row
             )
